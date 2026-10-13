@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { db } from '../db/db';
 import { PaymentType, type Sale } from '../types';
 import { dateKeyOf } from '../utils/date';
@@ -13,14 +14,24 @@ function makeSale(dateKey: string, total: number): Sale {
     paymentType: PaymentType.CASH,
     items: [
       {
-        productId: 1,
+        menuItemId: 1,
         name: 'Item',
+        basePrice: total,
+        selectedModifiers: [],
         unitPrice: total,
         quantity: 1,
         lineTotal: total,
       },
     ],
   };
+}
+
+function renderReports() {
+  return render(
+    <MemoryRouter>
+      <ReportsPage />
+    </MemoryRouter>
+  );
 }
 
 beforeEach(async () => {
@@ -30,12 +41,12 @@ beforeEach(async () => {
 describe('ReportsPage', () => {
   it("shows today's total and transaction count", async () => {
     const today = dateKeyOf();
-    await db.sales.bulkAdd([makeSale(today, 4), makeSale(today, 6)]);
+    await db.sales.bulkAdd([makeSale(today, 40), makeSale(today, 60)]);
 
-    render(<ReportsPage />);
+    renderReports();
 
     await waitFor(() =>
-      expect(screen.getByLabelText('Daily total')).toHaveTextContent('$10.00')
+      expect(screen.getByLabelText('Daily total')).toHaveTextContent('100.00')
     );
     expect(screen.getByLabelText('Transaction count')).toHaveTextContent(
       '2 transactions'
@@ -44,27 +55,36 @@ describe('ReportsPage', () => {
 
   it('updates the total when a different date is selected', async () => {
     const today = dateKeyOf();
-    await db.sales.bulkAdd([
-      makeSale(today, 5),
-      makeSale('2000-01-01', 99),
-    ]);
+    await db.sales.bulkAdd([makeSale(today, 50), makeSale('2000-01-01', 99)]);
 
-    render(<ReportsPage />);
+    renderReports();
 
     await waitFor(() =>
-      expect(screen.getByLabelText('Daily total')).toHaveTextContent('$5.00')
+      expect(screen.getByLabelText('Daily total')).toHaveTextContent('50.00')
     );
 
     const dateInput = screen.getByLabelText(/date/i);
     fireEvent.change(dateInput, { target: { value: '2000-01-01' } });
 
     await waitFor(() =>
-      expect(screen.getByLabelText('Daily total')).toHaveTextContent('$99.00')
+      expect(screen.getByLabelText('Daily total')).toHaveTextContent('99.00')
     );
   });
 
   it('shows an empty message when there are no sales for the day', async () => {
-    render(<ReportsPage />);
+    renderReports();
     expect(await screen.findByText(/no sales on this day/i)).toBeInTheDocument();
+  });
+
+  it('links each transaction to its receipt', async () => {
+    const today = dateKeyOf();
+    const id = await db.sales.add(makeSale(today, 42));
+
+    renderReports();
+
+    const link = await screen.findByRole('link', {
+      name: /view receipt for sale/i,
+    });
+    expect(link).toHaveAttribute('href', `/receipt/${id}`);
   });
 });

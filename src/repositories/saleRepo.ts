@@ -2,18 +2,12 @@ import { db } from '../db/db';
 import { PaymentType, type Sale, type SaleItem } from '../types';
 import { dateKeyOf } from '../utils/date';
 
-/** A single requested line in a sale: which product and how many units. */
-export interface SaleLineInput {
-  productId: number;
-  quantity: number;
-}
-
-export class InsufficientStockError extends Error {
-  constructor(public readonly productId: number, public readonly name: string) {
-    super(`Insufficient stock for "${name}"`);
-    this.name = 'InsufficientStockError';
-  }
-}
+/**
+ * A fully-resolved sale line as sent from the cart. Modifiers are chosen in the
+ * UI, so the line already carries its snapshotted name, base price, selected
+ * modifiers and computed unit price. The repo trusts and persists these.
+ */
+export type SaleLineInput = Omit<SaleItem, 'lineTotal'>;
 
 export class EmptySaleError extends Error {
   constructor() {
@@ -23,62 +17,34 @@ export class EmptySaleError extends Error {
 }
 
 /**
- * Complete a sale atomically. Inside a single readwrite transaction we:
- *   1. Re-read each product (authoritative stock, not the UI snapshot).
- *   2. Validate sufficient stock — throw to roll the whole transaction back.
- *   3. Build the sale record (snapshotting name + unit price per line).
- *   4. Decrement stockQuantity and increment salesCount on each product.
- *   5. Insert the sale.
- * Returns the new sale id.
+ * Complete a sale atomically. There is no inventory to adjust (street food is
+ * not stock-tracked), so this simply snapshots the lines, computes totals and
+ * inserts one sale record inside a transaction. Returns the new sale id.
  */
 export async function completeSale(
   lines: SaleLineInput[],
   paymentType: PaymentType = PaymentType.CASH
 ): Promise<number> {
-  if (lines.length === 0) throw new EmptySaleError();
+  const valid = lines.filter((l) => l.quantity > 0);
+  if (valid.length === 0) throw new EmptySaleError();
 
-  return db.transaction('rw', db.products, db.sales, async () => {
-    const items: SaleItem[] = [];
+  const items: SaleItem[] = valid.map((l) => ({
+    ...l,
+    lineTotal: +(l.unitPrice * l.quantity).toFixed(2),
+  }));
 
-    for (const { productId, quantity } of lines) {
-      if (quantity <= 0) continue;
-      const product = await db.products.get(productId);
-      if (!product || product.id == null) {
-        throw new InsufficientStockError(productId, `#${productId}`);
-      }
-      if (product.stockQuantity < quantity) {
-        throw new InsufficientStockError(product.id, product.name);
-      }
+  const now = new Date();
+  const total = +items.reduce((sum, i) => sum + i.lineTotal, 0).toFixed(2);
 
-      items.push({
-        productId: product.id,
-        name: product.name,
-        unitPrice: product.price,
-        quantity,
-        lineTotal: +(product.price * quantity).toFixed(2),
-      });
+  const sale: Sale = {
+    timestamp: now.getTime(),
+    dateKey: dateKeyOf(now),
+    items,
+    total,
+    paymentType,
+  };
 
-      await db.products.update(product.id, {
-        stockQuantity: product.stockQuantity - quantity,
-        salesCount: product.salesCount + quantity,
-      });
-    }
-
-    if (items.length === 0) throw new EmptySaleError();
-
-    const now = new Date();
-    const total = +items.reduce((sum, i) => sum + i.lineTotal, 0).toFixed(2);
-
-    const sale: Sale = {
-      timestamp: now.getTime(),
-      dateKey: dateKeyOf(now),
-      items,
-      total,
-      paymentType,
-    };
-
-    return db.sales.add(sale);
-  });
+  return db.transaction('rw', db.sales, async () => db.sales.add(sale));
 }
 
 /** Fetch a single sale by id (for the receipt view). */
@@ -86,10 +52,32 @@ export async function getById(id: number): Promise<Sale | undefined> {
   return db.sales.get(id);
 }
 
-/** All sales for a given day, newest first. */
+/**
+ * Void a sale (soft delete). The record is kept for the audit trail but is
+ * excluded from reporting totals. Returns the number of records updated (0/1).
+ */
+export async function voidSale(id: number): Promise<number> {
+  return db.sales.update(id, { voided: true, voidedAt: Date.now() });
+}
+
+/** Every sale, newest first — active and voided (for the admin panel). */
+export async function listAll(): Promise<Sale[]> {
+  const sales = await db.sales.toArray();
+  return sales.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/** Only voided sales, most recently voided first (for the audit view). */
+export async function listVoided(): Promise<Sale[]> {
+  const sales = await db.sales.filter((s) => s.voided === true).toArray();
+  return sales.sort((a, b) => (b.voidedAt ?? 0) - (a.voidedAt ?? 0));
+}
+
+/** Active (non-voided) sales for a given day, newest first. */
 export async function listByDate(dateKey: string): Promise<Sale[]> {
   const sales = await db.sales.where('dateKey').equals(dateKey).toArray();
-  return sales.sort((a, b) => b.timestamp - a.timestamp);
+  return sales
+    .filter((s) => !s.voided)
+    .sort((a, b) => b.timestamp - a.timestamp);
 }
 
 export interface DailyTotal {
@@ -98,18 +86,26 @@ export interface DailyTotal {
   count: number;
 }
 
-/** Sum of sale totals and transaction count for a given day (default today). */
+/**
+ * Sum of sale totals and transaction count for a given day (default today).
+ * Voided sales are excluded so an accidental transaction never inflates the
+ * day's figures.
+ */
 export async function dailyTotal(
   dateKey: string = dateKeyOf()
 ): Promise<DailyTotal> {
   const sales = await db.sales.where('dateKey').equals(dateKey).toArray();
-  const total = +sales.reduce((sum, s) => sum + s.total, 0).toFixed(2);
-  return { dateKey, total, count: sales.length };
+  const active = sales.filter((s) => !s.voided);
+  const total = +active.reduce((sum, s) => sum + s.total, 0).toFixed(2);
+  return { dateKey, total, count: active.length };
 }
 
 export const saleRepo = {
   completeSale,
   getById,
+  voidSale,
+  listAll,
+  listVoided,
   listByDate,
   dailyTotal,
 };

@@ -15,7 +15,7 @@ function renderReceiptAt(id: number | string) {
     <MemoryRouter initialEntries={[`/receipt/${id}`]}>
       <Routes>
         <Route path="/receipt/:saleId" element={<ReceiptPage />} />
-        <Route path="/checkout" element={<div>Checkout screen</div>} />
+        <Route path="/" element={<div>Checkout screen</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -25,22 +25,20 @@ async function seedSale(): Promise<number> {
   const sale: Sale = {
     timestamp: Date.now(),
     dateKey: '2026-01-01',
-    total: 6.75,
-    paymentType: PaymentType.CASH,
+    total: 94,
+    paymentType: PaymentType.GCASH,
     items: [
       {
-        productId: 1,
-        name: 'Soda',
-        unitPrice: 2.5,
-        quantity: 2,
-        lineTotal: 5,
-      },
-      {
-        productId: 2,
-        name: 'Chips',
-        unitPrice: 1.75,
+        menuItemId: 1,
+        name: 'Iced Coffee',
+        basePrice: 59,
+        selectedModifiers: [
+          { groupName: 'Size', optionName: 'Large', priceDelta: 20 },
+          { groupName: 'Add-ons', optionName: 'Pearls', priceDelta: 15 },
+        ],
+        unitPrice: 94,
         quantity: 1,
-        lineTotal: 1.75,
+        lineTotal: 94,
       },
     ],
   };
@@ -48,16 +46,44 @@ async function seedSale(): Promise<number> {
 }
 
 describe('ReceiptPage', () => {
-  it('renders the line items, totals and payment type of a stored sale', async () => {
+  it('renders the line items, chosen modifiers, total and payment type', async () => {
     const id = await seedSale();
     renderReceiptAt(id);
 
-    expect(await screen.findByText('Soda')).toBeInTheDocument();
-    expect(screen.getByText('Chips')).toBeInTheDocument();
-    expect(screen.getByText('$5.00')).toBeInTheDocument();
-    expect(screen.getByText('$1.75')).toBeInTheDocument();
-    expect(screen.getByLabelText('Receipt total')).toHaveTextContent('$6.75');
-    expect(screen.getByText('CASH')).toBeInTheDocument();
+    expect(await screen.findByText('Iced Coffee')).toBeInTheDocument();
+    // Modifiers summarised on the line.
+    expect(screen.getByText(/Large, Pearls/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Receipt total')).toHaveTextContent('94.00');
+    expect(screen.getByText('GCASH')).toBeInTheDocument();
+    // Store header (thermal layout, uppercase store name).
+    expect(screen.getByText('KAFFEED')).toBeInTheDocument();
+  });
+
+  it('renders the thermal-receipt sections and amount in words', async () => {
+    const id = await seedSale();
+    renderReceiptAt(id);
+
+    await screen.findByText('KAFFEED');
+
+    // Metadata.
+    expect(screen.getByText(/^TRN#:/)).toBeInTheDocument();
+    expect(screen.getByText(`#${id}`)).toBeInTheDocument();
+    // Order section header.
+    expect(screen.getByText('-- ORDER --')).toBeInTheDocument();
+    // Per-item quantity @ unit price line.
+    expect(screen.getByText(/1 @/)).toBeInTheDocument();
+    // Totals block.
+    expect(screen.getByText('SUBTOTAL')).toBeInTheDocument();
+    expect(screen.getByText(/^TAX /)).toBeInTheDocument();
+    // Amount in words (total 94 → Ninety-Four Pesos).
+    expect(screen.getByText(/Amount in Words:/)).toBeInTheDocument();
+    expect(screen.getByText('Ninety-Four Pesos')).toBeInTheDocument();
+    // Barcode with zero-padded TRN beneath + footer.
+    const trn = String(id).padStart(6, '0');
+    expect(screen.getByLabelText(`Barcode ${trn}`)).toBeInTheDocument();
+    expect(
+      screen.getByText(/thank you! we hope to see you again/i)
+    ).toBeInTheDocument();
   });
 
   it('calls window.print when Print is tapped', async () => {

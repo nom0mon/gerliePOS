@@ -8,12 +8,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'gcash-qr.png'],
       manifest: {
-        name: 'Mommy POS',
-        short_name: 'Mommy POS',
-        description: 'Offline point-of-sale for a single device.',
-        theme_color: '#0f766e',
+        name: 'Kaffeed',
+        short_name: 'Kaffeed',
+        description: 'Offline street-food point-of-sale for a single device.',
+        theme_color: '#6f4e37',
         background_color: '#f8fafc',
         display: 'standalone',
         orientation: 'portrait',

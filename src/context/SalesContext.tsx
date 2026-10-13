@@ -11,11 +11,11 @@ import { useCart } from './CartContext';
 
 interface SalesContextValue {
   /**
-   * Persist the current cart as a completed sale. Clears the cart on success
-   * and returns the new sale id. Throws (e.g. InsufficientStockError) on
-   * failure, leaving the cart intact.
+   * Persist the current cart as a completed sale with the given payment type.
+   * Clears the cart on success and returns the new sale id. Throws (e.g.
+   * EmptySaleError) on failure, leaving the cart intact.
    */
-  completeSale: (paymentType?: PaymentType) => Promise<number>;
+  completeSale: (paymentType: PaymentType) => Promise<number>;
 }
 
 const SalesContext = createContext<SalesContextValue | null>(null);
@@ -26,12 +26,14 @@ export function SalesProvider({ children }: { children: ReactNode }) {
   const completeSale = useCallback(
     async (paymentType: PaymentType = PaymentType.CASH) => {
       const input: SaleLineInput[] = lines.map((l) => ({
-        productId: l.productId,
+        menuItemId: l.menuItemId,
+        name: l.name,
+        basePrice: l.basePrice,
+        selectedModifiers: l.selectedModifiers,
+        unitPrice: l.unitPrice,
         quantity: l.quantity,
       }));
       const saleId = await saleRepo.completeSale(input, paymentType);
-      // Catalog list is reactive (useLiveQuery) so stock/sold update on their
-      // own; we just clear the now-sold cart.
       clear();
       return saleId;
     },

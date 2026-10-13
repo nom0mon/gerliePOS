@@ -26,7 +26,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div className="app-shell">
-          <header className="app-header">Mommy POS</header>
+          <header className="app-header">Kaffeed</header>
           <main className="app-main">
             <h1 className="page-title">Something went wrong</h1>
             <p className="muted">{this.state.error.message}</p>

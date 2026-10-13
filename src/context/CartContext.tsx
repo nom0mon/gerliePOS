@@ -6,16 +6,54 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import type { Product } from '../types';
+import type { MenuItem, SelectedModifier } from '../types';
 
-/** A product plus the quantity currently in the cart. */
+/**
+ * A line in the cart: one menu item with a specific set of chosen modifiers,
+ * plus a quantity. Two taps of the same item with *different* modifiers produce
+ * two separate lines; identical selections stack onto one line.
+ */
 export interface CartLine {
-  productId: number;
+  /** Stable identity for this item+modifier combination (see lineKey). */
+  key: string;
+  menuItemId: number;
   name: string;
+  basePrice: number;
+  selectedModifiers: SelectedModifier[];
+  /** basePrice + sum of modifier priceDeltas. */
   unitPrice: number;
   quantity: number;
-  /** Stock available at the time the line was added — used to cap quantity. */
-  stockAvailable: number;
+}
+
+/**
+ * Build a stable key for an item + its selected modifiers so identical
+ * selections collapse to one cart line. Options are sorted so order of
+ * selection does not matter.
+ */
+export function lineKey(
+  menuItemId: number,
+  selected: SelectedModifier[]
+): string {
+  const mods = selected
+    .map((m) => `${m.groupName}:${m.optionName}`)
+    .sort()
+    .join('|');
+  return `${menuItemId}#${mods}`;
+}
+
+/** Unit price = base + every selected modifier's delta. */
+export function computeUnitPrice(
+  basePrice: number,
+  selected: SelectedModifier[]
+): number {
+  const delta = selected.reduce((sum, m) => sum + m.priceDelta, 0);
+  return +(basePrice + delta).toFixed(2);
+}
+
+/** A request to add a configured item to the cart. */
+export interface AddToCartInput {
+  item: MenuItem;
+  selectedModifiers: SelectedModifier[];
 }
 
 interface CartState {
@@ -23,32 +61,29 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: 'ADD'; product: Product }
-  | { type: 'SET_QTY'; productId: number; quantity: number }
-  | { type: 'REMOVE'; productId: number }
+  | { type: 'ADD'; input: AddToCartInput }
+  | { type: 'SET_QTY'; key: string; quantity: number }
+  | { type: 'REMOVE'; key: string }
   | { type: 'CLEAR' };
 
 const initialState: CartState = { lines: [] };
 
 /**
- * Pure cart reducer. Keeping this exported makes the quantity/total rules
- * directly unit-testable without rendering any component.
+ * Pure cart reducer. Exported so the quantity/stacking/total rules are directly
+ * unit-testable without rendering any component.
  */
 export function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case 'ADD': {
-      const { product } = action;
-      if (product.id == null || product.stockQuantity <= 0) return state;
+      const { item, selectedModifiers } = action.input;
+      if (item.id == null) return state;
 
-      const existing = state.lines.find((l) => l.productId === product.id);
+      const key = lineKey(item.id, selectedModifiers);
+      const existing = state.lines.find((l) => l.key === key);
       if (existing) {
-        // Do not exceed available stock.
-        if (existing.quantity >= existing.stockAvailable) return state;
         return {
           lines: state.lines.map((l) =>
-            l.productId === product.id
-              ? { ...l, quantity: l.quantity + 1 }
-              : l
+            l.key === key ? { ...l, quantity: l.quantity + 1 } : l
           ),
         };
       }
@@ -57,34 +92,32 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
         lines: [
           ...state.lines,
           {
-            productId: product.id,
-            name: product.name,
-            unitPrice: product.price,
+            key,
+            menuItemId: item.id,
+            name: item.name,
+            basePrice: item.basePrice,
+            selectedModifiers,
+            unitPrice: computeUnitPrice(item.basePrice, selectedModifiers),
             quantity: 1,
-            stockAvailable: product.stockQuantity,
           },
         ],
       };
     }
 
     case 'SET_QTY': {
-      const { productId, quantity } = action;
+      const { key, quantity } = action;
       if (quantity <= 0) {
-        return { lines: state.lines.filter((l) => l.productId !== productId) };
+        return { lines: state.lines.filter((l) => l.key !== key) };
       }
       return {
         lines: state.lines.map((l) =>
-          l.productId === productId
-            ? { ...l, quantity: Math.min(quantity, l.stockAvailable) }
-            : l
+          l.key === key ? { ...l, quantity } : l
         ),
       };
     }
 
     case 'REMOVE':
-      return {
-        lines: state.lines.filter((l) => l.productId !== action.productId),
-      };
+      return { lines: state.lines.filter((l) => l.key !== action.key) };
 
     case 'CLEAR':
       return initialState;
@@ -111,9 +144,9 @@ interface CartContextValue {
   total: number;
   count: number;
   isEmpty: boolean;
-  addItem: (product: Product) => void;
-  setQuantity: (productId: number, quantity: number) => void;
-  removeItem: (productId: number) => void;
+  addItem: (input: AddToCartInput) => void;
+  setQuantity: (key: string, quantity: number) => void;
+  removeItem: (key: string) => void;
   clear: () => void;
 }
 
@@ -123,16 +156,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, initialState);
 
   const addItem = useCallback(
-    (product: Product) => dispatch({ type: 'ADD', product }),
+    (input: AddToCartInput) => dispatch({ type: 'ADD', input }),
     []
   );
   const setQuantity = useCallback(
-    (productId: number, quantity: number) =>
-      dispatch({ type: 'SET_QTY', productId, quantity }),
+    (key: string, quantity: number) =>
+      dispatch({ type: 'SET_QTY', key, quantity }),
     []
   );
   const removeItem = useCallback(
-    (productId: number) => dispatch({ type: 'REMOVE', productId }),
+    (key: string) => dispatch({ type: 'REMOVE', key }),
     []
   );
   const clear = useCallback(() => dispatch({ type: 'CLEAR' }), []);

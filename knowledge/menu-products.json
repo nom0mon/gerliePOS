@@ -1,0 +1,116 @@
+{
+  "menu": {
+    "street_foods": {
+      "price": 20.00,
+      "items": [
+        "FRENCH FRIES",
+        "FISH BALL",
+        "KIKIAM",
+        "SQUID BALLS",
+        "CHICKEN BALLS",
+        "HOTDOG"
+      ]
+    },
+    "burgers_and_sandwiches": [
+      {
+        "item": "BURGER",
+        "prices": {
+          "Regular": 30,
+          "w/ Cheese": 36,
+          "w/ Egg": 42,
+          "w/ Cheese & Egg": 48
+        }
+      },
+      {
+        "item": "HAM",
+        "prices": {
+          "w/ Cheese": 30,
+          "w/ Egg": 35,
+          "w/ Cheese & Egg": 40
+        }
+      },
+      {
+        "item": "BACON",
+        "prices": {
+          "w/ Egg": 35,
+          "w/ Cheese & Egg": 40
+        }
+      }
+    ],
+    "hotdogs_and_sausages": [
+      {
+        "item": "HOTDOG",
+        "prices": {
+          "On Stick": 20,
+          "Sandwich": 30,
+          "Sandwich w/ Cheese": 35,
+          "Egg Roll Sandwich": 40
+        }
+      },
+      {
+        "item": "HUNGARIAN SAUSAGE",
+        "prices": {
+          "On Stick": 40,
+          "Sandwich": 55
+        }
+      }
+    ],
+    "footlongs_and_halflongs": [
+      {
+        "item": "FOOTLONG",
+        "prices": {
+          "Regular": 40,
+          "w/ Cheese": 50,
+          "w/ Coleslaw": 50,
+          "w/ Cheese & Coleslaw": 60
+        }
+      },
+      {
+        "item": "HALFLONG",
+        "prices": {
+          "Regular": 25,
+          "w/ Cheese": 30,
+          "w/ Coleslaw": 30,
+          "w/ Cheese & Coleslaw": 35
+        }
+      }
+    ],
+    "floats": [
+      {
+        "item": "COKE FLOAT",
+        "prices": {
+          "8oz": 25,
+          "12oz": 35,
+          "16oz": 45
+        }
+      },
+      { "item": "CHUCKIE FLOAT", "price": 49 },
+      { "item": "DUTCHMILL STRAWBERRY FLOAT", "price": 49 },
+      { "item": "LUCKY DAY COFFEE FLOAT", "price": 55 }
+    ],
+    "desserts_and_sodas": [
+      {
+        "item": "ICE CREAM",
+        "price": 15,
+        "flavors": ["COOKIES & CREAM"]
+      },
+      { "item": "MILO CON YELO", "price": 30 },
+      { "item": "GRAHAM CON YELO", "price": 30 },
+      {
+        "item": "FRUIT SODA",
+        "prices": {
+          "8oz": 20,
+          "12oz": 30,
+          "16oz": 40
+        },
+        "flavors": [
+          "GREEN APPLE",
+          "LYCHEE",
+          "STRAWBERRY",
+          "WINTER MELON",
+          "BLUEBERRY"
+        ]
+      }
+    ]
+  }
+}

@@ -56,7 +56,45 @@ function solidPng(size, [r, g, b]) {
   ]);
 }
 
-const teal = [15, 118, 110]; // #0f766e
-writeFileSync('public/icon-192.png', solidPng(192, teal));
-writeFileSync('public/icon-512.png', solidPng(512, teal));
-console.log('Generated public/icon-192.png and public/icon-512.png');
+const coffee = [111, 78, 55]; // #6f4e37
+writeFileSync('public/icon-192.png', solidPng(192, coffee));
+writeFileSync('public/icon-512.png', solidPng(512, coffee));
+
+// Placeholder GCash QR: a white square with a centered dark block so the app
+// has a valid image until the real QR is dropped in at public/gcash-qr.png.
+function placeholderQr(size) {
+  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const rowLen = 1 + size * 3;
+  const raw = Buffer.alloc(rowLen * size);
+  const lo = Math.floor(size * 0.3);
+  const hi = Math.floor(size * 0.7);
+  for (let y = 0; y < size; y++) {
+    const off = y * rowLen;
+    raw[off] = 0;
+    for (let x = 0; x < size; x++) {
+      const p = off + 1 + x * 3;
+      const dark = x >= lo && x <= hi && y >= lo && y <= hi;
+      const v = dark ? 15 : 255;
+      raw[p] = v;
+      raw[p + 1] = v;
+      raw[p + 2] = v;
+    }
+  }
+  const idat = deflateSync(raw);
+  return Buffer.concat([
+    sig,
+    chunk('IHDR', ihdr),
+    chunk('IDAT', idat),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+writeFileSync('public/gcash-qr.png', placeholderQr(480));
+console.log(
+  'Generated public/icon-192.png, public/icon-512.png, public/gcash-qr.png'
+);

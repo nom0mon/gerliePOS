@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { db } from '../db/db';
 import App from '../App';
 
 function renderApp(initialPath = '/') {
@@ -12,21 +13,26 @@ function renderApp(initialPath = '/') {
   );
 }
 
+beforeEach(async () => {
+  await db.menuItems.clear();
+  await db.sales.clear();
+});
+
 describe('App navigation', () => {
-  it('renders the catalog page by default', () => {
+  it('renders the checkout page by default', () => {
     renderApp('/');
     expect(
-      screen.getByRole('heading', { name: /catalog/i })
+      screen.getByRole('heading', { name: /checkout/i })
     ).toBeInTheDocument();
   });
 
-  it('navigates to checkout and reports via the bottom nav', async () => {
+  it('navigates to menu and reports via the bottom nav', async () => {
     const user = userEvent.setup();
     renderApp('/');
 
-    await user.click(screen.getByRole('link', { name: /checkout/i }));
+    await user.click(screen.getByRole('link', { name: /menu/i }));
     expect(
-      screen.getByRole('heading', { name: /checkout/i })
+      screen.getByRole('heading', { name: /menu/i })
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('link', { name: /reports/i }));
