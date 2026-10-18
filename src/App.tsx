@@ -1,19 +1,24 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import MenuPage from './pages/MenuPage';
 import CheckoutPage from './pages/CheckoutPage';
 import ReceiptPage from './pages/ReceiptPage';
 import ReportsPage from './pages/ReportsPage';
-import AuthPage from './pages/AuthPage';
-import AdminProductsPage from './pages/AdminProductsPage';
-import AdminTransactionsPage from './pages/AdminTransactionsPage';
-import AdminAuditPage from './pages/AdminAuditPage';
 import { MenuProvider } from './context/MenuContext';
 import { CartProvider } from './context/CartContext';
 import { SalesProvider } from './context/SalesContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ADMIN_UNLOCK_KEY } from './config/admin';
 import type { ReactNode } from 'react';
+
+// Admin + account screens are owner-only and rarely the first screen a cashier
+// opens, so they are code-split out of the initial (checkout) bundle to keep
+// the first load light on low-end devices.
+const AuthPage = lazy(() => import('./pages/AuthPage'));
+const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage'));
+const AdminTransactionsPage = lazy(() => import('./pages/AdminTransactionsPage'));
+const AdminAuditPage = lazy(() => import('./pages/AdminAuditPage'));
 
 /**
  * Gates /admin/* routes.
@@ -46,6 +51,7 @@ export default function App() {
       <MenuProvider>
         <CartProvider>
           <SalesProvider>
+            <Suspense fallback={<p className="muted" style={{ padding: 16 }}>Loading…</p>}>
             <Routes>
               <Route element={<Layout />}>
                 <Route index element={<CheckoutPage />} />
@@ -79,6 +85,7 @@ export default function App() {
                 />
               </Route>
             </Routes>
+            </Suspense>
           </SalesProvider>
         </CartProvider>
       </MenuProvider>

@@ -45,6 +45,7 @@ export default function Layout() {
           <Icon name="coffee" size={18} />
         </span>
         Kaffeed
+        <SyncIndicator />
       </header>
 
       <main className="app-main">
@@ -84,7 +85,6 @@ export default function Layout() {
       )}
 
       {sidebarOpen && <Sidebar onClose={() => setSidebarOpen(false)} />}
-
       {notice && (
         <div
           role="status"
@@ -106,5 +106,44 @@ export default function Layout() {
         </div>
       )}
     </div>
+  );
+}
+
+
+/**
+ * Small cloud-sync indicator in the header. Renders nothing in local-only mode
+ * (offline-only / client build), so that experience is visually unchanged.
+ */
+function SyncIndicator() {
+  const { syncState } = useAuth();
+  if (syncState === 'local') return null;
+
+  const map: Record<string, { label: string; color: string; bg: string }> = {
+    syncing: { label: 'Synced', color: '#166534', bg: '#dcfce7' },
+    offline: { label: 'Offline', color: '#92400e', bg: '#fef3c7' },
+    error: {
+      label: 'Sync error',
+      color: 'var(--color-danger)',
+      bg: 'var(--color-danger-soft)',
+    },
+  };
+  const s = map[syncState];
+  return (
+    <span
+      role="status"
+      aria-label={`Cloud sync: ${s.label}`}
+      title={`Cloud sync: ${s.label}`}
+      style={{
+        marginLeft: 'auto',
+        fontSize: '0.72rem',
+        fontWeight: 600,
+        padding: '2px 8px',
+        borderRadius: 999,
+        color: s.color,
+        background: s.bg,
+      }}
+    >
+      {s.label}
+    </span>
   );
 }

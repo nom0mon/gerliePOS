@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -13,6 +14,7 @@ import {
   type Membership,
   type MembershipRole,
 } from '../repositories/accountRepo';
+import { startReplication, type ReplicationHandles } from '../db/replication';
 
 /**
  * Authentication state for the whole app.
@@ -30,6 +32,14 @@ interface AuthContextValue {
   membership: Membership | null;
   /** Effective role. Signed-out local mode is treated as 'owner' (sole operator). */
   role: MembershipRole;
+  /**
+   * Coarse sync state for the UI indicator:
+   *   'local'   — no cloud / not syncing (offline-only mode or signed out).
+   *   'offline' — syncing enabled but the device is offline right now.
+   *   'syncing' — replication active and online.
+   *   'error'   — a replication stream reported an error.
+   */
+  syncState: 'local' | 'offline' | 'syncing' | 'error';
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -44,11 +54,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(cloudEnabled);
   const [session, setSession] = useState<Session | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [replicating, setReplicating] = useState(false);
+  const [syncError, setSyncError] = useState(false);
+  const [online, setOnline] = useState(
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  );
+
+  // Track browser connectivity for the sync indicator.
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => {
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', down);
+    };
+  }, []);
 
   const refreshMembership = useCallback(async () => {
     const m = await accountRepo.getMembership();
     setMembership(m);
   }, []);
+
+  // Start/stop tenant-scoped cloud replication as the active business changes.
+  // No-op in local/unconfigured mode (startReplication returns null).
+  const replicationRef = useRef<ReplicationHandles | null>(null);
+  const activeBusinessId = membership?.businessId ?? null;
+  useEffect(() => {
+    let cancelled = false;
+    setSyncError(false);
+    (async () => {
+      await replicationRef.current?.stop();
+      replicationRef.current = null;
+      setReplicating(false);
+      if (!activeBusinessId) return;
+      const handles = await startReplication(activeBusinessId, (status) => {
+        if (cancelled) return;
+        if (status === 'error') setSyncError(true);
+      });
+      if (cancelled) {
+        await handles?.stop();
+      } else {
+        replicationRef.current = handles;
+        setReplicating(handles != null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      void replicationRef.current?.stop();
+      replicationRef.current = null;
+    };
+  }, [activeBusinessId]);
 
   // Initialise session + subscribe to auth changes (no-op if unconfigured).
   useEffect(() => {
@@ -109,6 +166,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // offline single-device experience (full admin access) is unchanged.
   const role: MembershipRole = signedIn ? membership?.role ?? 'cashier' : 'owner';
 
+  const syncState: AuthContextValue['syncState'] = !replicating
+    ? 'local'
+    : syncError
+      ? 'error'
+      : !online
+        ? 'offline'
+        : 'syncing';
+
   const value = useMemo<AuthContextValue>(
     () => ({
       cloudEnabled,
@@ -117,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signedIn,
       membership,
       role,
+      syncState,
       signIn,
       signUp,
       signOut,
@@ -130,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signedIn,
       membership,
       role,
+      syncState,
       signIn,
       signUp,
       signOut,

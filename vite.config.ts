@@ -35,6 +35,20 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Split the heavy, rarely-changing data/sync libraries into their own
+        // chunk so app-code updates don't force re-downloading them. Helps
+        // repeat loads on low-end devices / flaky networks.
+        manualChunks: {
+          'vendor-db': ['rxdb', 'rxjs'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

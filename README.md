@@ -1,37 +1,58 @@
-# Kaffeed
+# Kaffeed / KainNa
 
-A frontend-only, offline-capable Point of Sale app for a single mobile device,
-built for a street-food / coffee stall. Named after Kaffi (the dog) + "feed".
+A frontend-first, offline-capable Point of Sale app for street-food / coffee
+stalls. Named after Kaffi (the dog) + "feed".
 
-Built with React + Vite + TypeScript, with all data stored locally in the
-browser via IndexedDB (Dexie). It installs as a PWA so it launches from the
-phone's home screen and the app shell works offline. Prices are in Philippine
-pesos (₱).
+This repo now ships **two editions from one codebase** (see
+[Deployments & branches](#deployments--branches)):
+
+- **Client (KainNa)** — the original single-stall, **offline-only** POS. All
+  data lives on the device; no accounts, no cloud.
+- **Global (SaaS)** — a **multi-tenant, cloud + offline** platform: any vendor
+  signs up, gets their own business, and their menu/sales sync to the cloud
+  while still working fully offline.
+
+Built with React + Vite + TypeScript. Local data is stored in the browser
+(IndexedDB) via **RxDB**; the global edition replicates per-business to
+**Supabase** (Postgres + Row-Level Security). Installs as a PWA so the app shell
+works offline. Prices are in Philippine pesos (₱).
 
 ## Features
 
-- **Menu** — items grouped into categories (Drinks, Snacks, Rice Meals, …),
-  each with a base price and an availability ("sold out") toggle. No inventory
-  tracking: finished street food is not stock-counted.
-- **Modifiers** — items can carry sizes, flavours/variants, and add-ons:
+- **Accounts & roles** (global edition) — email/password sign-in; each vendor
+  owns a **business**; staff are **owners** (full admin) or **cashiers**
+  (checkout only). Offline-only mode needs no account and keeps a soft PIN gate.
+- **Menu** — items grouped into categories, each with a base price and an
+  availability ("sold out") toggle.
+- **Stock tracking** (opt-in per item) — items can track a quantity with a
+  low-stock threshold. Stock decrements on sale and is restored on void; an item
+  at zero is treated as sold out. Street food cooked on demand simply leaves
+  tracking off.
+- **Modifiers** — sizes, flavours/variants, and add-ons:
   - single-select groups (e.g. Size, Flavour) behave like radios,
   - multiple-select groups (e.g. Add-ons) behave like checkboxes,
   - required single-select groups must be chosen before adding to the order.
-  Each option carries a price delta that is added to the item's base price.
-- **Checkout** — category tabs, tap an item to add it (a picker opens for
-  customizable items), adjust quantities, see a running total. Identical
-  item+modifier combinations stack onto one line; different ones stay separate.
-- **Payments** — **Cash** or **GCash via QR**. Choosing GCash shows the stall's
-  QR code (`public/gcash-qr.png`) for the customer to scan, then the cashier
-  confirms "Payment received" to complete the sale.
-- **Receipt** — a print/share-friendly receipt after each sale, listing each
-  line's chosen modifiers, unit price, the total, and the payment method.
+  Each option carries a price delta added to the item's base price.
+- **Checkout** — category tabs, tap to add (a picker opens for customizable
+  items), adjust quantities, running total. Identical item+modifier combinations
+  stack onto one line; different ones stay separate.
+- **Payments** — **Cash** or **GCash via QR** (`public/gcash-qr.png`).
+- **Receipt** — a print/share-friendly thermal-style receipt per sale.
 - **Reports** — daily sales total and transaction count, with a date picker.
+  Voided sales are excluded.
+- **Admin** — owner/back-office area (products CRUD, transactions, void/audit
+  trail, stock management, account).
+- **Cloud sync** (global edition) — bidirectional, tenant-scoped replication to
+  Supabase with a last-write-wins conflict policy; offline queue + reconnect.
+  A header indicator shows Synced / Offline / Sync error. See
+  [`docs/sync-and-offline.md`](docs/sync-and-offline.md).
 - **Offline PWA** — installable, works without a network connection.
 
-All state is managed with focused React Contexts (`MenuContext`, `CartContext`,
-`SalesContext`) composed at the app root. Data access is isolated in repository
-modules (`menuRepo`, `saleRepo`) that wrap Dexie.
+State is managed with focused React Contexts (`MenuContext`, `CartContext`,
+`SalesContext`, `AuthContext`) composed at the app root. All data access is
+isolated in repository modules (`menuRepo`, `saleRepo`, `stockRepo`,
+`accountRepo`) over an RxDB store (`src/db/rxdb.ts`); the global edition adds
+`src/db/replication.ts` for Supabase sync.
 
 ## Requirements
 
@@ -88,21 +109,30 @@ No code change is needed as long as the filename stays the same.
 
 ## Data & privacy
 
-- There is no backend and no network sync. Everything lives in this device's
-  browser storage (IndexedDB, database name `kaffeed-pos`).
-- Clearing the browser's site data for this app erases all menu items and sales.
+- **Client (offline-only) build:** no backend, no network sync. Everything lives
+  in this device's browser storage (IndexedDB, via RxDB). Clearing the browser's
+  site data erases all menu items and sales.
+- **Global build:** data lives locally first (same IndexedDB/RxDB) and
+  replicates to the vendor's own Supabase tenant, protected by Row-Level
+  Security. See [`docs/sync-and-offline.md`](docs/sync-and-offline.md).
 
 ## Project structure
 
 ```
 src/
-  db/            Dexie instance (db.ts) + sample menu seed
-  repositories/  Data access (menuRepo, saleRepo) — the only code touching Dexie
-  types/         Shared domain types (MenuItem, ModifierGroup, Sale, PaymentType)
-  context/       MenuContext, CartContext, SalesContext
-  pages/         Checkout, Menu, Receipt, Reports
-  components/    Layout, ErrorBoundary
+  db/            RxDB store (rxdb.ts), sample menu seed, legacy import,
+                 Supabase replication (replication.ts)
+  repositories/  Data access (menuRepo, saleRepo, stockRepo, accountRepo) —
+                 the only code touching the store / Supabase
+  hooks/         useRxData (RxDB-backed reactive query hook)
+  types/         Shared domain types (MenuItem, ModifierGroup, Sale, SyncMeta, …)
+  config/        supabase.ts, tenancy.ts, admin.ts
+  context/       MenuContext, CartContext, SalesContext, AuthContext
+  pages/         Checkout, Menu, Receipt, Reports, Auth, Admin*
+  components/    Layout (+ sync indicator), Sidebar, ErrorBoundary
   utils/         money (PHP) + date helpers
+supabase/        SQL migrations (tenant schema + RLS)
+docs/            ADRs + sync/offline documentation
 ```
 
 ## Extending
@@ -113,10 +143,11 @@ src/
 - **Modifier editing UI:** new items are created with name/category/base price;
   modifier groups are currently defined in the seed data. A richer modifier
   editor on the Menu page would be the natural next step.
-- **Schema changes:** bump the Dexie version in `src/db/db.ts` with a new
-  `.version(n).stores(...)` block; never edit a shipped version block. The app
-  is already on v2 (grocery `products` → street-food `menuItems`).
-```
+- **Schema changes:** bump the `version` on the relevant RxDB collection schema
+  in `src/db/rxdb.ts` and add a migration strategy; never mutate a shipped
+  schema in place. For the cloud edition, mirror the change in a new SQL
+  migration under `supabase/migrations/` and in the mappers in
+  `src/db/replication.ts`.
 
 
 
