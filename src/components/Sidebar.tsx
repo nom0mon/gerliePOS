@@ -12,6 +12,7 @@ const LINKS: SidebarLink[] = [
   { to: '/admin/products', label: 'Products', icon: 'box' },
   { to: '/admin/transactions', label: 'Transactions', icon: 'receipt' },
   { to: '/admin/audit', label: 'Audit (voided)', icon: 'ban' },
+  { to: '/account', label: 'Account', icon: 'lock' },
 ];
 
 /**

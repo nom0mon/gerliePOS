@@ -9,6 +9,7 @@ import {
 import { useSales } from '../context/SalesContext';
 import { formatMoney } from '../utils/money';
 import { PaymentType, type MenuItem, type SelectedModifier } from '../types';
+import { isSellable } from '../repositories/stockRepo';
 import Icon from '../components/Icon';
 import Sheet from '../components/Sheet';
 
@@ -36,7 +37,7 @@ export default function CheckoutPage() {
   const inFlight = useRef(false);
 
   const available = useMemo(
-    () => (items ?? []).filter((i) => i.available),
+    () => (items ?? []).filter((i) => isSellable(i)),
     [items]
   );
   const currentCategory = activeCategory ?? categories[0] ?? null;

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { db } from '../db/db';
 import type { MenuItem } from '../types';
 import { MenuProvider } from '../context/MenuContext';
 import { menuRepo } from '../repositories/menuRepo';
+import { resetStore } from '../test/storeTestUtils';
 import AdminProductsPage from './AdminProductsPage';
 
 const COFFEE: Omit<MenuItem, 'id'> = {
@@ -23,9 +23,19 @@ const COFFEE: Omit<MenuItem, 'id'> = {
   ],
 };
 
+/** Seed a menu item via the repo (store boundary). Returns its string id. */
+function seedCoffee(): Promise<string> {
+  return menuRepo.add({
+    name: COFFEE.name,
+    category: COFFEE.category,
+    basePrice: COFFEE.basePrice,
+    available: COFFEE.available,
+    modifierGroups: COFFEE.modifierGroups,
+  });
+}
+
 beforeEach(async () => {
-  await db.menuItems.clear();
-  await db.sales.clear();
+  await resetStore();
 });
 
 function renderPage() {
@@ -38,7 +48,7 @@ function renderPage() {
 
 describe('AdminProductsPage', () => {
   it('edits a product name and price, preserving modifier groups', async () => {
-    const id = await db.menuItems.add(COFFEE as MenuItem);
+    const id = await seedCoffee();
     const user = userEvent.setup();
     renderPage();
 
@@ -66,7 +76,7 @@ describe('AdminProductsPage', () => {
   });
 
   it('deletes a product only after confirmation', async () => {
-    const id = await db.menuItems.add(COFFEE as MenuItem);
+    const id = await seedCoffee();
     const user = userEvent.setup();
     renderPage();
 
@@ -87,13 +97,11 @@ describe('AdminProductsPage', () => {
 
   it('resets the menu to default after confirmation', async () => {
     // One custom item only.
-    await db.menuItems.add({
+    await menuRepo.add({
       name: 'Custom Thing',
       category: 'X',
       basePrice: 1,
-      available: true,
-      modifierGroups: [],
-    } as MenuItem);
+    });
     const user = userEvent.setup();
     renderPage();
 

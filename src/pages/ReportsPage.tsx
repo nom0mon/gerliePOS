@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useRxData } from '../hooks/useRxData';
 import { saleRepo } from '../repositories/saleRepo';
 import { dateKeyOf } from '../utils/date';
 import { formatMoney } from '../utils/money';
@@ -10,8 +10,8 @@ export default function ReportsPage() {
   const [dateKey, setDateKey] = useState<string>(dateKeyOf());
 
   // Reactive: recomputes when the date changes or when new sales are recorded.
-  const summary = useLiveQuery(() => saleRepo.dailyTotal(dateKey), [dateKey]);
-  const sales = useLiveQuery(() => saleRepo.listByDate(dateKey), [dateKey]);
+  const summary = useRxData(() => saleRepo.dailyTotal(dateKey), [dateKey]);
+  const sales = useRxData(() => saleRepo.listByDate(dateKey), [dateKey]);
 
   return (
     <section>

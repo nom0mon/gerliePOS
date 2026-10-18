@@ -1,5 +1,6 @@
-import { db } from './db';
 import type { MenuItem } from '../types';
+import { activeBusinessId } from '../config/tenancy';
+import { getDb, newId } from './rxdb';
 
 /**
  * The stall's real menu, seeded into an empty database on first launch.
@@ -225,8 +226,18 @@ export const MENU: Omit<MenuItem, 'id'>[] = [
  * every app start. Returns the number of items inserted.
  */
 export async function seedIfEmpty(): Promise<number> {
-  const count = await db.menuItems.count();
+  const db = await getDb();
+  const count = await db.menuitems.count().exec();
   if (count > 0) return 0;
-  await db.menuItems.bulkAdd(MENU as MenuItem[]);
+  const now = Date.now();
+  const businessId = activeBusinessId();
+  const stamped = (MENU as MenuItem[]).map((item) => ({
+    ...item,
+    id: newId(),
+    businessId,
+    updatedAt: now,
+    isDeleted: false,
+  }));
+  await db.menuitems.bulkInsert(stamped);
   return MENU.length;
 }

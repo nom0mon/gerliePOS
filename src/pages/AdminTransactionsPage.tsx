@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useRxData } from '../hooks/useRxData';
 import { saleRepo } from '../repositories/saleRepo';
 import { formatMoney } from '../utils/money';
 import type { Sale } from '../types';
@@ -13,7 +13,7 @@ import Sheet from '../components/Sheet';
  * but excluded from Reports totals. Nothing is ever hard-deleted here.
  */
 export default function AdminTransactionsPage() {
-  const sales = useLiveQuery(() => saleRepo.listAll(), []);
+  const sales = useRxData(() => saleRepo.listAll(), []);
   const [voiding, setVoiding] = useState<Sale | null>(null);
 
   return (

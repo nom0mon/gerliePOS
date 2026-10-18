@@ -1,20 +1,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { db } from '../db/db';
 import { PaymentType, type Sale } from '../types';
 import { dateKeyOf } from '../utils/date';
 import ReportsPage from './ReportsPage';
+import { resetStore, seedSale } from '../test/storeTestUtils';
+import { newId } from '../db/rxdb';
 
 function makeSale(dateKey: string, total: number): Sale {
   return {
+    id: newId(),
     timestamp: Date.now(),
     dateKey,
     total,
     paymentType: PaymentType.CASH,
     items: [
       {
-        menuItemId: 1,
+        menuItemId: 'm1',
         name: 'Item',
         basePrice: total,
         selectedModifiers: [],
@@ -23,6 +25,9 @@ function makeSale(dateKey: string, total: number): Sale {
         lineTotal: total,
       },
     ],
+    businessId: 'local-business',
+    updatedAt: Date.now(),
+    isDeleted: false,
   };
 }
 
@@ -35,13 +40,14 @@ function renderReports() {
 }
 
 beforeEach(async () => {
-  await db.sales.clear();
+  await resetStore();
 });
 
 describe('ReportsPage', () => {
   it("shows today's total and transaction count", async () => {
     const today = dateKeyOf();
-    await db.sales.bulkAdd([makeSale(today, 40), makeSale(today, 60)]);
+    await seedSale(makeSale(today, 40));
+    await seedSale(makeSale(today, 60));
 
     renderReports();
 
@@ -55,7 +61,8 @@ describe('ReportsPage', () => {
 
   it('updates the total when a different date is selected', async () => {
     const today = dateKeyOf();
-    await db.sales.bulkAdd([makeSale(today, 50), makeSale('2000-01-01', 99)]);
+    await seedSale(makeSale(today, 50));
+    await seedSale(makeSale('2000-01-01', 99));
 
     renderReports();
 
@@ -78,7 +85,7 @@ describe('ReportsPage', () => {
 
   it('links each transaction to its receipt', async () => {
     const today = dateKeyOf();
-    const id = await db.sales.add(makeSale(today, 42));
+    const id = await seedSale(makeSale(today, 42));
 
     renderReports();
 

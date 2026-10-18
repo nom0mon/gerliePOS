@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMenu } from '../context/MenuContext';
 import { formatMoney } from '../utils/money';
 import type { MenuItem } from '../types';
+import { stockStatus } from '../repositories/stockRepo';
 import Icon from '../components/Icon';
 
 /**
@@ -77,6 +78,33 @@ export default function MenuPage() {
                       }}
                     >
                       Sold out
+                    </span>
+                  )}
+                  {item.available && stockStatus(item) === 'out' && (
+                    <span
+                      className="badge"
+                      style={{
+                        background: 'var(--color-danger-soft)',
+                        color: 'var(--color-danger)',
+                      }}
+                    >
+                      Out of stock
+                    </span>
+                  )}
+                  {item.available && stockStatus(item) === 'low' && (
+                    <span
+                      className="badge"
+                      style={{
+                        background: 'var(--color-warning-soft, #fff4e5)',
+                        color: 'var(--color-warning, #b26a00)',
+                      }}
+                    >
+                      Low: {item.stockQty} left
+                    </span>
+                  )}
+                  {item.available && stockStatus(item) === 'ok' && (
+                    <span className="badge" style={{ opacity: 0.7 }}>
+                      {item.stockQty} in stock
                     </span>
                   )}
                   <span className="spacer" />

@@ -11,7 +11,7 @@ import {
 import type { MenuItem, SelectedModifier } from '../types';
 
 const coffee: MenuItem = {
-  id: 1,
+  id: 'm1',
   name: 'Iced Coffee',
   category: 'Drinks',
   basePrice: 59,
@@ -20,7 +20,7 @@ const coffee: MenuItem = {
 };
 
 const fries: MenuItem = {
-  id: 2,
+  id: 'm2',
   name: 'Fries',
   category: 'Snacks',
   basePrice: 40,
@@ -43,15 +43,15 @@ const empty = { lines: [] as CartLine[] };
 
 describe('lineKey', () => {
   it('is identical regardless of modifier order', () => {
-    expect(lineKey(1, [large, pearls])).toBe(lineKey(1, [pearls, large]));
+    expect(lineKey('m1', [large, pearls])).toBe(lineKey('m1', [pearls, large]));
   });
 
   it('differs when modifiers differ', () => {
-    expect(lineKey(1, [large])).not.toBe(lineKey(1, [pearls]));
+    expect(lineKey('m1', [large])).not.toBe(lineKey('m1', [pearls]));
   });
 
   it('differs when the item differs', () => {
-    expect(lineKey(1, [large])).not.toBe(lineKey(2, [large]));
+    expect(lineKey('m1', [large])).not.toBe(lineKey('m2', [large]));
   });
 });
 
@@ -73,7 +73,7 @@ describe('cartReducer', () => {
     });
     expect(state.lines).toHaveLength(1);
     expect(state.lines[0]).toMatchObject({
-      menuItemId: 1,
+      menuItemId: 'm1',
       name: 'Iced Coffee',
       basePrice: 59,
       unitPrice: 79, // 59 + 20
@@ -137,7 +137,7 @@ describe('cartReducer', () => {
     });
     const coffeeKey = state.lines[0].key;
     state = cartReducer(state, { type: 'REMOVE', key: coffeeKey });
-    expect(state.lines.map((l) => l.menuItemId)).toEqual([2]);
+    expect(state.lines.map((l) => l.menuItemId)).toEqual(['m2']);
   });
 
   it('clears the cart', () => {

@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '../db/db';
 import { PaymentType, type SelectedModifier } from '../types';
 import { saleRepo, EmptySaleError, type SaleLineInput } from './saleRepo';
+import { resetStore, seedSale } from '../test/storeTestUtils';
+import { newId } from '../db/rxdb';
 import { dateKeyOf } from '../utils/date';
 
 function line(
-  menuItemId: number,
+  menuItemId: string,
   name: string,
   basePrice: number,
   quantity: number,
@@ -17,21 +18,21 @@ function line(
 }
 
 beforeEach(async () => {
-  await db.sales.clear();
+  await resetStore();
 });
 
 describe('saleRepo.completeSale', () => {
   it('persists the sale and computes totals from resolved lines', async () => {
     const saleId = await saleRepo.completeSale(
       [
-        line(1, 'Iced Coffee', 59, 2, [
+        line('m1', 'Iced Coffee', 59, 2, [
           { groupName: 'Size', optionName: 'Large', priceDelta: 20 },
-        ]), // unit 79 x 2 = 158
-        line(2, 'Fries', 40, 1), // 40
+        ]),
+        line('m2', 'Fries', 40, 1),
       ],
       PaymentType.GCASH
     );
-
+    expect(typeof saleId).toBe('string');
     const sale = await saleRepo.getById(saleId);
     expect(sale).toBeDefined();
     expect(sale!.paymentType).toBe(PaymentType.GCASH);
@@ -42,17 +43,17 @@ describe('saleRepo.completeSale', () => {
 
   it('snapshots name, base price, modifiers and lineTotal into items', async () => {
     const saleId = await saleRepo.completeSale([
-      line(1, 'Milk Tea', 69, 2, [
+      line('m1', 'Milk Tea', 69, 2, [
         { groupName: 'Flavour', optionName: 'Taro', priceDelta: 5 },
         { groupName: 'Add-ons', optionName: 'Pearls', priceDelta: 15 },
       ]),
     ]);
     const sale = await saleRepo.getById(saleId);
     expect(sale!.items[0]).toMatchObject({
-      menuItemId: 1,
+      menuItemId: 'm1',
       name: 'Milk Tea',
       basePrice: 69,
-      unitPrice: 89, // 69 + 5 + 15
+      unitPrice: 89,
       quantity: 2,
       lineTotal: 178,
     });
@@ -60,15 +61,15 @@ describe('saleRepo.completeSale', () => {
   });
 
   it('defaults to CASH when no payment type is given', async () => {
-    const saleId = await saleRepo.completeSale([line(1, 'Water', 20, 1)]);
+    const saleId = await saleRepo.completeSale([line('m1', 'Water', 20, 1)]);
     const sale = await saleRepo.getById(saleId);
     expect(sale!.paymentType).toBe(PaymentType.CASH);
   });
 
   it('ignores zero-quantity lines', async () => {
     const saleId = await saleRepo.completeSale([
-      line(1, 'Water', 20, 0),
-      line(2, 'Fries', 40, 1),
+      line('m1', 'Water', 20, 0),
+      line('m2', 'Fries', 40, 1),
     ]);
     const sale = await saleRepo.getById(saleId);
     expect(sale!.items).toHaveLength(1);
@@ -76,22 +77,20 @@ describe('saleRepo.completeSale', () => {
   });
 
   it('throws EmptySaleError for an empty line list', async () => {
-    await expect(saleRepo.completeSale([])).rejects.toBeInstanceOf(
-      EmptySaleError
-    );
+    await expect(saleRepo.completeSale([])).rejects.toBeInstanceOf(EmptySaleError);
   });
 
   it('throws EmptySaleError when every line has zero quantity', async () => {
     await expect(
-      saleRepo.completeSale([line(1, 'Water', 20, 0)])
+      saleRepo.completeSale([line('m1', 'Water', 20, 0)])
     ).rejects.toBeInstanceOf(EmptySaleError);
   });
 });
 
 describe('saleRepo.dailyTotal', () => {
   it('sums totals and counts transactions for a given day', async () => {
-    await saleRepo.completeSale([line(1, 'Thing', 2, 2)]); // 4
-    await saleRepo.completeSale([line(1, 'Thing', 2, 3)]); // 6
+    await saleRepo.completeSale([line('m1', 'Thing', 2, 2)]);
+    await saleRepo.completeSale([line('m1', 'Thing', 2, 3)]);
 
     const today = await saleRepo.dailyTotal();
     expect(today.total).toBe(10);
@@ -100,14 +99,18 @@ describe('saleRepo.dailyTotal', () => {
   });
 
   it('isolates totals by day', async () => {
-    await saleRepo.completeSale([line(1, 'Thing', 2, 1)]); // today, total 2
+    await saleRepo.completeSale([line('m1', 'Thing', 2, 1)]);
 
-    await db.sales.add({
+    await seedSale({
+      id: newId(),
       timestamp: Date.now(),
       dateKey: '2000-01-01',
       items: [],
       total: 99,
       paymentType: PaymentType.CASH,
+      businessId: 'local-business',
+      updatedAt: Date.now(),
+      isDeleted: false,
     });
 
     const today = await saleRepo.dailyTotal();
@@ -122,21 +125,18 @@ describe('saleRepo.dailyTotal', () => {
 
 describe('saleRepo void (soft delete)', () => {
   it('marks a sale voided with a timestamp and keeps the record', async () => {
-    const id = await saleRepo.completeSale([line(1, 'Thing', 50, 1)]);
-
+    const id = await saleRepo.completeSale([line('m1', 'Thing', 50, 1)]);
     const before = Date.now();
     await saleRepo.voidSale(id);
-
     const sale = await saleRepo.getById(id);
-    expect(sale).toBeDefined(); // not hard-deleted
+    expect(sale).toBeDefined();
     expect(sale!.voided).toBe(true);
     expect(sale!.voidedAt).toBeGreaterThanOrEqual(before);
   });
 
   it('excludes voided sales from dailyTotal and count', async () => {
-    const keep = await saleRepo.completeSale([line(1, 'Keep', 30, 1)]); // 30
-    const oops = await saleRepo.completeSale([line(2, 'Oops', 70, 1)]); // 70
-    void keep;
+    await saleRepo.completeSale([line('m1', 'Keep', 30, 1)]);
+    const oops = await saleRepo.completeSale([line('m2', 'Oops', 70, 1)]);
 
     let today = await saleRepo.dailyTotal();
     expect(today.total).toBe(100);
@@ -145,13 +145,13 @@ describe('saleRepo void (soft delete)', () => {
     await saleRepo.voidSale(oops);
 
     today = await saleRepo.dailyTotal();
-    expect(today.total).toBe(30); // the voided 70 is excluded
+    expect(today.total).toBe(30);
     expect(today.count).toBe(1);
   });
 
   it('excludes voided sales from listByDate but keeps them in listAll', async () => {
-    const a = await saleRepo.completeSale([line(1, 'A', 10, 1)]);
-    const b = await saleRepo.completeSale([line(2, 'B', 20, 1)]);
+    const a = await saleRepo.completeSale([line('m1', 'A', 10, 1)]);
+    const b = await saleRepo.completeSale([line('m2', 'B', 20, 1)]);
     await saleRepo.voidSale(b);
 
     const active = await saleRepo.listByDate(dateKeyOf());
@@ -162,8 +162,8 @@ describe('saleRepo void (soft delete)', () => {
   });
 
   it('listVoided returns only voided sales', async () => {
-    await saleRepo.completeSale([line(1, 'A', 10, 1)]);
-    const b = await saleRepo.completeSale([line(2, 'B', 20, 1)]);
+    await saleRepo.completeSale([line('m1', 'A', 10, 1)]);
+    const b = await saleRepo.completeSale([line('m2', 'B', 20, 1)]);
     await saleRepo.voidSale(b);
 
     const voided = await saleRepo.listVoided();

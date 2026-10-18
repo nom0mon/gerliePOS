@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { db } from '../db/db';
 import type { MenuItem } from '../types';
 import { MenuProvider } from '../context/MenuContext';
 import { menuRepo } from '../repositories/menuRepo';
+import { resetStore } from '../test/storeTestUtils';
 import MenuPage from './MenuPage';
 
 const ITEM: Omit<MenuItem, 'id'> = {
@@ -16,8 +16,8 @@ const ITEM: Omit<MenuItem, 'id'> = {
 };
 
 beforeEach(async () => {
-  await db.menuItems.clear();
-  await db.menuItems.add(ITEM as MenuItem);
+  await resetStore();
+  await menuRepo.add({ name: ITEM.name, category: ITEM.category, basePrice: ITEM.basePrice });
 });
 
 function renderMenu() {
@@ -64,13 +64,11 @@ describe('MenuPage (quick service view)', () => {
   });
 
   it('filters items by search query', async () => {
-    await db.menuItems.add({
+    await menuRepo.add({
       name: 'Kikiam',
       category: 'Street Foods',
       basePrice: 20,
-      available: true,
-      modifierGroups: [],
-    } as MenuItem);
+    });
     const user = userEvent.setup();
     renderMenu();
 

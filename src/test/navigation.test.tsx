@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { db } from '../db/db';
+import { resetStore } from '../test/storeTestUtils';
 import App from '../App';
 
 function renderApp(initialPath = '/') {
@@ -14,8 +14,7 @@ function renderApp(initialPath = '/') {
 }
 
 beforeEach(async () => {
-  await db.menuItems.clear();
-  await db.sales.clear();
+  await resetStore();
 });
 
 describe('App navigation', () => {

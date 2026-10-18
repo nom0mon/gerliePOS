@@ -11,12 +11,13 @@ import Sheet from '../components/Sheet';
  * toggles sold-out during service.
  */
 export default function AdminProductsPage() {
-  const { items, categories, loading, addItem, updateItem, removeItem, resetToDefault } =
+  const { items, categories, loading, addItem, updateItem, removeItem, resetToDefault, configureStock } =
     useMenu();
 
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [deleting, setDeleting] = useState<MenuItem | null>(null);
+  const [stocking, setStocking] = useState<MenuItem | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
 
   const grouped = useMemo(() => {
@@ -93,6 +94,17 @@ export default function AdminProductsPage() {
                     {item.modifierGroups.map((g) => g.name).join(' · ')}
                   </div>
                 )}
+                <div
+                  className="muted"
+                  style={{ fontSize: '0.82rem', marginTop: 4 }}
+                >
+                  {item.trackStock
+                    ? `Stock: ${item.stockQty ?? 0}` +
+                      (item.lowStockThreshold
+                        ? ` (low at ${item.lowStockThreshold})`
+                        : '')
+                    : 'Stock: not tracked'}
+                </div>
                 <div className="row" style={{ marginTop: 12 }}>
                   <button
                     type="button"
@@ -103,6 +115,16 @@ export default function AdminProductsPage() {
                   >
                     <Icon name="edit" size={18} />
                     Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ width: 'auto' }}
+                    aria-label={`Manage stock for ${item.name}`}
+                    onClick={() => setStocking(item)}
+                  >
+                    <Icon name="box" size={18} />
+                    Stock
                   </button>
                   <span className="spacer" />
                   <button
@@ -140,6 +162,23 @@ export default function AdminProductsPage() {
           onSave={async (data) => {
             if (editing.id != null) await updateItem(editing.id, data);
             setEditing(null);
+          }}
+        />
+      )}
+
+      {stocking && (
+        <StockForm
+          item={stocking}
+          onCancel={() => setStocking(null)}
+          onSave={async ({ trackStock, stockQty, lowStockThreshold }) => {
+            if (stocking.id != null) {
+              await configureStock(stocking.id, {
+                trackStock,
+                stockQty,
+                lowStockThreshold,
+              });
+            }
+            setStocking(null);
           }}
         />
       )}
@@ -301,6 +340,120 @@ function ProductForm({
         <button type="submit" className="btn">
           <Icon name="check" size={20} />
           Save
+        </button>
+      </form>
+    </Sheet>
+  );
+}
+
+
+interface StockFormData {
+  trackStock: boolean;
+  stockQty?: number;
+  lowStockThreshold?: number;
+}
+
+/**
+ * Stock management sheet for one product. Lets the owner turn stock tracking
+ * on/off and set the current quantity + a low-stock warning threshold. When
+ * tracking is off, street-food "cook on demand" behaviour is unchanged.
+ */
+function StockForm({
+  item,
+  onCancel,
+  onSave,
+}: {
+  item: MenuItem;
+  onCancel: () => void;
+  onSave: (data: StockFormData) => void | Promise<void>;
+}) {
+  const [trackStock, setTrackStock] = useState<boolean>(item.trackStock ?? false);
+  const [qty, setQty] = useState<string>(
+    item.stockQty != null ? String(item.stockQty) : '0'
+  );
+  const [threshold, setThreshold] = useState<string>(
+    item.lowStockThreshold != null ? String(item.lowStockThreshold) : '0'
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!trackStock) {
+      void onSave({ trackStock: false });
+      return;
+    }
+    const qtyNum = Number(qty);
+    const thrNum = Number(threshold);
+    if (!Number.isFinite(qtyNum) || qtyNum < 0) {
+      return setError('Quantity must be a non-negative number.');
+    }
+    if (!Number.isFinite(thrNum) || thrNum < 0) {
+      return setError('Low-stock threshold must be a non-negative number.');
+    }
+    void onSave({
+      trackStock: true,
+      stockQty: Math.floor(qtyNum),
+      lowStockThreshold: Math.floor(thrNum),
+    });
+  }
+
+  return (
+    <Sheet title={`Stock · ${item.name}`} onClose={onCancel}>
+      <form onSubmit={submit}>
+        <label
+          className="row"
+          style={{ gap: 10, cursor: 'pointer', marginBottom: 12 }}
+        >
+          <input
+            type="checkbox"
+            checked={trackStock}
+            onChange={(e) => setTrackStock(e.target.checked)}
+            aria-label="Track stock for this item"
+          />
+          <span>Track stock for this item</span>
+        </label>
+
+        {trackStock && (
+          <>
+            <div className="field">
+              <label htmlFor="sf-qty">Current quantity</label>
+              <input
+                id="sf-qty"
+                className="input"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="sf-threshold">Low-stock warning at</label>
+              <input
+                id="sf-threshold"
+                className="input"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                value={threshold}
+                onChange={(e) => setThreshold(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
+        {error && (
+          <p style={{ color: 'var(--color-danger)', margin: '0 0 12px' }}>
+            {error}
+          </p>
+        )}
+        <button type="submit" className="btn">
+          <Icon name="check" size={20} />
+          Save stock
         </button>
       </form>
     </Sheet>

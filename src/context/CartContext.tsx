@@ -16,7 +16,7 @@ import type { MenuItem, SelectedModifier } from '../types';
 export interface CartLine {
   /** Stable identity for this item+modifier combination (see lineKey). */
   key: string;
-  menuItemId: number;
+  menuItemId: string;
   name: string;
   basePrice: number;
   selectedModifiers: SelectedModifier[];
@@ -31,7 +31,7 @@ export interface CartLine {
  * selection does not matter.
  */
 export function lineKey(
-  menuItemId: number,
+  menuItemId: string,
   selected: SelectedModifier[]
 ): string {
   const mods = selected

@@ -2,20 +2,22 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { db } from '../db/db';
 import { PaymentType, type Sale } from '../types';
 import { saleRepo } from '../repositories/saleRepo';
+import { resetStore, seedSale } from '../test/storeTestUtils';
+import { newId } from '../db/rxdb';
 import AdminTransactionsPage from './AdminTransactionsPage';
 
 function sale(total: number): Sale {
   return {
+    id: newId(),
     timestamp: Date.now(),
     dateKey: '2026-01-01',
     total,
     paymentType: PaymentType.CASH,
     items: [
       {
-        menuItemId: 1,
+        menuItemId: 'm1',
         name: 'Item',
         basePrice: total,
         selectedModifiers: [],
@@ -24,11 +26,14 @@ function sale(total: number): Sale {
         lineTotal: total,
       },
     ],
+    businessId: 'local-business',
+    updatedAt: Date.now(),
+    isDeleted: false,
   };
 }
 
 beforeEach(async () => {
-  await db.sales.clear();
+  await resetStore();
 });
 
 function renderPage() {
@@ -44,7 +49,7 @@ function renderPage() {
 
 describe('AdminTransactionsPage', () => {
   it('voids a sale only after confirmation and shows a voided badge', async () => {
-    const id = await db.sales.add(sale(70));
+    const id = await seedSale(sale(70));
     const user = userEvent.setup();
     renderPage();
 

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useRxData } from '../hooks/useRxData';
 import { saleRepo } from '../repositories/saleRepo';
 import { formatMoney } from '../utils/money';
 import Icon from '../components/Icon';
@@ -10,7 +10,7 @@ import Icon from '../components/Icon';
  * accidental/cancelled transactions: what was voided, its value, and when.
  */
 export default function AdminAuditPage() {
-  const voided = useLiveQuery(() => saleRepo.listVoided(), []);
+  const voided = useRxData(() => saleRepo.listVoided(), []);
 
   return (
     <section>

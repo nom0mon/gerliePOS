@@ -15,7 +15,7 @@ interface SalesContextValue {
    * Clears the cart on success and returns the new sale id. Throws (e.g.
    * EmptySaleError) on failure, leaving the cart intact.
    */
-  completeSale: (paymentType: PaymentType) => Promise<number>;
+  completeSale: (paymentType: PaymentType) => Promise<string>;
 }
 
 const SalesContext = createContext<SalesContextValue | null>(null);

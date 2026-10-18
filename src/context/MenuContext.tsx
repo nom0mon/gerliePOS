@@ -5,9 +5,10 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useRxData } from '../hooks/useRxData';
 import type { MenuItem } from '../types';
 import { menuRepo, type NewMenuItem } from '../repositories/menuRepo';
+import { stockRepo } from '../repositories/stockRepo';
 
 interface MenuContextValue {
   /** Reactive list of all menu items, ordered by category then name. */
@@ -15,22 +16,28 @@ interface MenuContextValue {
   /** Distinct categories present in the menu, in display order. */
   categories: string[];
   loading: boolean;
-  addItem: (input: NewMenuItem) => Promise<number>;
+  addItem: (input: NewMenuItem) => Promise<string>;
   updateItem: (
-    id: number,
+    id: string,
     changes: Partial<Omit<MenuItem, 'id'>>
   ) => Promise<number>;
-  setAvailable: (id: number, available: boolean) => Promise<number>;
-  removeItem: (id: number) => Promise<void>;
+  setAvailable: (id: string, available: boolean) => Promise<number>;
+  removeItem: (id: string) => Promise<void>;
   resetToDefault: () => Promise<number>;
+  /** Enable/disable stock tracking and set opening quantity + low threshold. */
+  configureStock: (
+    id: string,
+    opts: { trackStock: boolean; stockQty?: number; lowStockThreshold?: number }
+  ) => Promise<number>;
+  /** Set an absolute quantity for a tracked item (restock/correction). */
+  setStock: (id: string, qty: number) => Promise<number>;
 }
 
 const MenuContext = createContext<MenuContextValue | null>(null);
 
 export function MenuProvider({ children }: { children: ReactNode }) {
-  // useLiveQuery re-runs whenever the menuItems table changes, so any write
-  // re-renders consumers automatically.
-  const items = useLiveQuery(() => menuRepo.list(), []);
+  // Reactive: re-runs whenever the menuItems collection changes.
+  const items = useRxData(() => menuRepo.list(), []);
 
   const categories = useMemo(() => {
     if (!items) return [];
@@ -41,16 +48,31 @@ export function MenuProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback((input: NewMenuItem) => menuRepo.add(input), []);
   const updateItem = useCallback(
-    (id: number, changes: Partial<Omit<MenuItem, 'id'>>) =>
+    (id: string, changes: Partial<Omit<MenuItem, 'id'>>) =>
       menuRepo.update(id, changes),
     []
   );
   const setAvailable = useCallback(
-    (id: number, available: boolean) => menuRepo.setAvailable(id, available),
+    (id: string, available: boolean) => menuRepo.setAvailable(id, available),
     []
   );
-  const removeItem = useCallback((id: number) => menuRepo.remove(id), []);
+  const removeItem = useCallback((id: string) => menuRepo.remove(id), []);
   const resetToDefault = useCallback(() => menuRepo.resetToDefault(), []);
+  const configureStock = useCallback(
+    (
+      id: string,
+      opts: {
+        trackStock: boolean;
+        stockQty?: number;
+        lowStockThreshold?: number;
+      }
+    ) => stockRepo.configure(id, opts),
+    []
+  );
+  const setStock = useCallback(
+    (id: string, qty: number) => stockRepo.setQuantity(id, qty),
+    []
+  );
 
   const value = useMemo<MenuContextValue>(
     () => ({
@@ -62,8 +84,20 @@ export function MenuProvider({ children }: { children: ReactNode }) {
       setAvailable,
       removeItem,
       resetToDefault,
+      configureStock,
+      setStock,
     }),
-    [items, categories, addItem, updateItem, setAvailable, removeItem, resetToDefault]
+    [
+      items,
+      categories,
+      addItem,
+      updateItem,
+      setAvailable,
+      removeItem,
+      resetToDefault,
+      configureStock,
+      setStock,
+    ]
   );
 
   return <MenuContext.Provider value={value}>{children}</MenuContext.Provider>;

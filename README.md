@@ -117,3 +117,45 @@ src/
   `.version(n).stores(...)` block; never edit a shipped version block. The app
   is already on v2 (grocery `products` → street-food `menuItems`).
 ```
+
+
+
+## Deployments & branches
+
+This repository feeds **two independent Vercel deployments from the same repo**.
+They run different generations of the app and must never be mixed:
+
+| Deployment        | Branch     | What it is                                             | Env vars                                              |
+| ----------------- | ---------- | ------------------------------------------------------ | ----------------------------------------------------- |
+| **Client (KainNa)** | `master` | The original single-stall, offline-only POS (old app). | none                                                  |
+| **Global (SaaS)**   | `KainNa` | The multi-tenant, cloud + offline platform (Phase 1+). | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`         |
+
+Two separate Vercel **projects** both import this repo:
+
+- **Client project** → Production Branch `master`; no Supabase env vars; client's
+  own domain. Runs fully offline-local — no sign-in, no cloud.
+- **Global project** → Production Branch `KainNa`; Supabase env vars set; global
+  domain. Runs full multi-tenant cloud sync.
+
+Vercel inlines `VITE_*` vars at **build time**, so each project bakes in its own
+configuration when it builds its branch. The global app degrades gracefully to
+local-only if its Supabase vars are ever missing (see `src/config/supabase.ts`).
+
+> **Critical rule: never merge `KainNa` into `master`.** The client's production
+> deployment builds from `master`. Merging the global/Phase-1 work into `master`
+> would push the entire store migration and cloud code onto the live client
+> unintentionally. Keep global work on `KainNa` (or a dedicated global production
+> branch); promote to the client only by deliberate, reviewed changes to the old
+> app on `master`.
+
+### Secrets
+
+`.env` and `knowledge/supabase-creds.json` are gitignored and must never be
+committed. The Supabase **anon** key is safe to expose in the client bundle
+(Row-Level Security protects tenant data); the **service_role** key must never
+appear in client code, env `VITE_*` vars, or the repo.
+
+### Before a production launch of the global app
+
+- Re-enable **Confirm email** in Supabase Auth (it was disabled during testing).
+- Set the Supabase env vars in the global Vercel project.

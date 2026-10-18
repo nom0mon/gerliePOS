@@ -41,12 +41,11 @@ export default function ReceiptPage() {
 
   useEffect(() => {
     let active = true;
-    const id = Number(saleId);
-    if (!Number.isFinite(id)) {
+    if (!saleId) {
       setState({ status: 'notfound' });
       return;
     }
-    void saleRepo.getById(id).then((sale) => {
+    void saleRepo.getById(saleId).then((sale) => {
       if (!active) return;
       setState(sale ? { status: 'ready', sale } : { status: 'notfound' });
     });

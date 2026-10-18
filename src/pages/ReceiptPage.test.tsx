@@ -2,15 +2,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { db } from '../db/db';
 import { PaymentType, type Sale } from '../types';
 import ReceiptPage from './ReceiptPage';
+import { resetStore, seedSale as seedSaleDoc } from '../test/storeTestUtils';
+import { newId } from '../db/rxdb';
 
 beforeEach(async () => {
-  await db.sales.clear();
+  await resetStore();
 });
 
-function renderReceiptAt(id: number | string) {
+function renderReceiptAt(id: string) {
   return render(
     <MemoryRouter initialEntries={[`/receipt/${id}`]}>
       <Routes>
@@ -21,15 +22,16 @@ function renderReceiptAt(id: number | string) {
   );
 }
 
-async function seedSale(): Promise<number> {
+async function seedSale(): Promise<string> {
   const sale: Sale = {
+    id: newId(),
     timestamp: Date.now(),
     dateKey: '2026-01-01',
     total: 94,
     paymentType: PaymentType.GCASH,
     items: [
       {
-        menuItemId: 1,
+        menuItemId: 'm1',
         name: 'Iced Coffee',
         basePrice: 59,
         selectedModifiers: [
@@ -41,8 +43,11 @@ async function seedSale(): Promise<number> {
         lineTotal: 94,
       },
     ],
+    businessId: 'local-business',
+    updatedAt: Date.now(),
+    isDeleted: false,
   };
-  return db.sales.add(sale);
+  return seedSaleDoc(sale);
 }
 
 describe('ReceiptPage', () => {
@@ -101,7 +106,7 @@ describe('ReceiptPage', () => {
   });
 
   it('shows a not-found message for a missing sale', async () => {
-    renderReceiptAt(99999);
+    renderReceiptAt('nonexistent-id');
     expect(await screen.findByText(/sale not found/i)).toBeInTheDocument();
   });
 });

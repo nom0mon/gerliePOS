@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '../db/db';
 import { menuRepo } from './menuRepo';
+import { resetStore } from '../test/storeTestUtils';
 
 beforeEach(async () => {
-  await db.menuItems.clear();
+  await resetStore();
 });
 
 describe('menuRepo', () => {
@@ -13,6 +13,7 @@ describe('menuRepo', () => {
       category: '  Snacks  ',
       basePrice: 45,
     });
+    expect(typeof id).toBe('string');
     const item = await menuRepo.getById(id);
     expect(item).toMatchObject({
       name: 'Burger', // trimmed
@@ -65,18 +66,15 @@ describe('menuRepo', () => {
   });
 
   it('resetToDefault replaces all items with the default menu', async () => {
-    // Start with a single custom item.
     await menuRepo.add({ name: 'Custom Thing', category: 'X', basePrice: 1 });
     expect(await menuRepo.list()).toHaveLength(1);
 
     const seeded = await menuRepo.resetToDefault();
 
     const items = await menuRepo.list();
-    // Custom item is gone; the full default menu is loaded.
     expect(items).toHaveLength(seeded);
     expect(seeded).toBeGreaterThan(1);
     expect(items.some((i) => i.name === 'Custom Thing')).toBe(false);
-    // Spot-check a known default item + a sized item's Size group.
     expect(items.some((i) => i.name === 'FISH BALL')).toBe(true);
     const coke = items.find((i) => i.name === 'COKE FLOAT');
     expect(coke?.modifierGroups[0]?.name).toBe('Size');

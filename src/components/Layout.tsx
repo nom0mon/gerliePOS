@@ -4,13 +4,25 @@ import Icon from './Icon';
 import PinGate from './PinGate';
 import Sidebar from './Sidebar';
 import { ADMIN_UNLOCK_KEY } from '../config/admin';
+import { useAuth } from '../context/AuthContext';
 
 export default function Layout() {
+  const { signedIn, role } = useAuth();
   const [pinOpen, setPinOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   function openAdmin() {
-    // Stay unlocked for the rest of the session once the PIN is entered.
+    // Signed-in users use their real role; local/offline users use the PIN.
+    if (signedIn) {
+      if (role === 'cashier') {
+        setNotice('Admin is available to owners only.');
+        return;
+      }
+      setSidebarOpen(true);
+      return;
+    }
+    // Local mode: stay unlocked for the rest of the session once PIN entered.
     if (sessionStorage.getItem(ADMIN_UNLOCK_KEY) === 'true') {
       setSidebarOpen(true);
     } else {
@@ -72,6 +84,27 @@ export default function Layout() {
       )}
 
       {sidebarOpen && <Sidebar onClose={() => setSidebarOpen(false)} />}
+
+      {notice && (
+        <div
+          role="status"
+          className="toast"
+          onClick={() => setNotice(null)}
+          style={{
+            position: 'fixed',
+            bottom: 88,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'var(--color-danger-soft)',
+            color: 'var(--color-danger)',
+            padding: '10px 16px',
+            borderRadius: 10,
+            zIndex: 50,
+          }}
+        >
+          {notice}
+        </div>
+      )}
     </div>
   );
 }

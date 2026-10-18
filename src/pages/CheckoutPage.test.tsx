@@ -2,11 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { db } from '../db/db';
 import type { MenuItem } from '../types';
 import { MenuProvider } from '../context/MenuContext';
 import { CartProvider } from '../context/CartContext';
 import { SalesProvider } from '../context/SalesContext';
+import { menuRepo } from '../repositories/menuRepo';
+import { saleRepo } from '../repositories/saleRepo';
+import { resetStore, salesCount } from '../test/storeTestUtils';
 import CheckoutPage from './CheckoutPage';
 
 const WATER: Omit<MenuItem, 'id'> = {
@@ -37,9 +39,14 @@ const COFFEE: Omit<MenuItem, 'id'> = {
 };
 
 beforeEach(async () => {
-  await db.menuItems.clear();
-  await db.sales.clear();
-  await db.menuItems.bulkAdd([WATER as MenuItem, COFFEE as MenuItem]);
+  await resetStore();
+  await menuRepo.add({ name: WATER.name, category: WATER.category, basePrice: WATER.basePrice });
+  await menuRepo.add({
+    name: COFFEE.name,
+    category: COFFEE.category,
+    basePrice: COFFEE.basePrice,
+    modifierGroups: COFFEE.modifierGroups,
+  });
 });
 
 function renderCheckout() {
@@ -104,7 +111,7 @@ describe('CheckoutPage', () => {
     await waitFor(() =>
       expect(screen.getByText(/receipt screen/i)).toBeInTheDocument()
     );
-    expect(await db.sales.count()).toBe(1);
+    expect(await salesCount()).toBe(1);
   });
 
   it('shows the GCash QR before completing a GCash sale', async () => {
@@ -122,16 +129,16 @@ describe('CheckoutPage', () => {
     await user.click(screen.getByRole('button', { name: /^charge/i }));
 
     expect(await screen.findByAltText(/gcash qr code/i)).toBeInTheDocument();
-    expect(await db.sales.count()).toBe(0);
+    expect(await salesCount()).toBe(0);
 
     // Confirm payment received → sale persists and navigates.
     await user.click(screen.getByRole('button', { name: /payment received/i }));
     await waitFor(() =>
       expect(screen.getByText(/receipt screen/i)).toBeInTheDocument()
     );
-    expect(await db.sales.count()).toBe(1);
+    expect(await salesCount()).toBe(1);
 
-    const sale = (await db.sales.toArray())[0];
+    const sale = (await saleRepo.listAll())[0];
     expect(sale.paymentType).toBe('GCASH');
   });
 
@@ -189,7 +196,7 @@ describe('CheckoutPage', () => {
       expect(screen.getByText(/receipt screen/i)).toBeInTheDocument()
     );
     // The in-flight guard must ensure exactly one sale was recorded.
-    expect(await db.sales.count()).toBe(1);
+    expect(await salesCount()).toBe(1);
   });
 
   it('preselects the default of a required single-select group (3-tap)', async () => {

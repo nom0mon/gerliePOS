@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { db } from '../db/db';
 import { PaymentType, type MenuItem } from '../types';
 import { CartProvider, useCart } from './CartContext';
 import { SalesProvider, useSales } from './SalesContext';
+import { resetStore, salesCount } from '../test/storeTestUtils';
+import { getDb } from '../db/rxdb';
 
 const coffee: MenuItem = {
-  id: 1,
+  id: 'm1',
   name: 'Iced Coffee',
   category: 'Drinks',
   basePrice: 59,
@@ -31,8 +32,7 @@ function Harness() {
 }
 
 beforeEach(async () => {
-  await db.menuItems.clear();
-  await db.sales.clear();
+  await resetStore();
 });
 
 describe('SalesContext.completeSale', () => {
@@ -55,15 +55,16 @@ describe('SalesContext.completeSale', () => {
     await waitFor(() =>
       expect(screen.getByTestId('count')).toHaveTextContent('0')
     );
-    expect(await db.sales.count()).toBe(1);
+    expect(await salesCount()).toBe(1);
 
-    const sales = await db.sales.toArray();
+    const db = await getDb();
+    const sales = (await db.sales.find().exec()).map((d) => d.toJSON());
     expect(sales[0]).toMatchObject({
       total: 118, // 59 x 2
       paymentType: PaymentType.GCASH,
     });
     expect(sales[0].items[0]).toMatchObject({
-      menuItemId: 1,
+      menuItemId: 'm1',
       name: 'Iced Coffee',
       unitPrice: 59,
       quantity: 2,
