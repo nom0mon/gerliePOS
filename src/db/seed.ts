@@ -105,59 +105,149 @@ function plain(
   return { name, category, basePrice, available: true, modifierGroups: [] };
 }
 
+/**
+ * Add-ons for bread/bun items: an optional, multiple-select group. "Extra
+ * patty" applies to burgers only, so it is included via the `withPatty` flag.
+ * Prices are per-add-on deltas in PHP.
+ */
+function addOnsGroup(withPatty: boolean): MenuItem['modifierGroups'][number] {
+  const options = [
+    { id: 'extra-egg', name: 'Extra Egg', priceDelta: 12 },
+    ...(withPatty
+      ? [{ id: 'extra-patty', name: 'Extra Patty', priceDelta: 12 }]
+      : []),
+    { id: 'extra-slice-cheese', name: 'Extra Slice Cheese', priceDelta: 6 },
+    { id: 'extra-ham', name: 'Extra Ham', priceDelta: 12 },
+    { id: 'extra-bacon', name: 'Extra Bacon', priceDelta: 15 },
+    { id: 'extra-coleslaw', name: 'Extra Coleslaw', priceDelta: 10 },
+  ];
+  return {
+    id: 'add-ons',
+    name: 'Add-ons',
+    selectionType: 'multiple',
+    required: false,
+    options,
+  };
+}
+
+/**
+ * Build a variant item that also carries the bread/bun Add-ons group.
+ * `withPatty` adds "Extra Patty" (burgers only).
+ */
+function variantItemWithAddOns(
+  name: string,
+  category: string,
+  variants: { label: string; price: number }[],
+  withPatty: boolean
+): Omit<MenuItem, 'id'> {
+  const item = variantItem(name, category, variants);
+  return {
+    ...item,
+    modifierGroups: [...item.modifierGroups, addOnsGroup(withPatty)],
+  };
+}
+
 const STREET_FOODS = [
   'FRENCH FRIES',
   'FISH BALL',
   'KIKIAM',
   'SQUID BALLS',
   'CHICKEN BALLS',
-  'HOTDOG',
 ].map((name) => plain(name, 'Street Foods', 20));
 
+// Separate fries products (not variants of FRENCH FRIES), ₱50 each.
+STREET_FOODS.push(
+  plain('CHEESE FRIES', 'Street Foods', 50),
+  plain('CHILI CHEESE FRIES', 'Street Foods', 50)
+);
+
 const BURGERS_SANDWICHES: Omit<MenuItem, 'id'>[] = [
-  variantItem('BURGER', 'Burgers & Sandwiches', [
-    { label: 'Regular', price: 30 },
-    { label: 'w/ Cheese', price: 36 },
-    { label: 'w/ Egg', price: 42 },
-    { label: 'w/ Cheese & Egg', price: 48 },
-  ]),
-  variantItem('HAM', 'Burgers & Sandwiches', [
-    { label: 'w/ Cheese', price: 30 },
-    { label: 'w/ Egg', price: 35 },
-    { label: 'w/ Cheese & Egg', price: 40 },
-  ]),
-  variantItem('BACON', 'Burgers & Sandwiches', [
-    { label: 'w/ Egg', price: 35 },
-    { label: 'w/ Cheese & Egg', price: 40 },
-  ]),
+  variantItemWithAddOns(
+    'BURGER',
+    'Burgers & Sandwiches',
+    [
+      { label: 'Regular', price: 30 },
+      { label: 'w/ Cheese', price: 36 },
+      { label: 'w/ Egg', price: 42 },
+      { label: 'w/ Cheese & Egg', price: 48 },
+    ],
+    true // burgers get Extra Patty
+  ),
+  variantItemWithAddOns(
+    'HAM',
+    'Burgers & Sandwiches',
+    [
+      { label: 'w/ Cheese', price: 30 },
+      { label: 'w/ Egg', price: 35 },
+      { label: 'w/ Cheese & Egg', price: 40 },
+    ],
+    false
+  ),
+  variantItemWithAddOns(
+    'BACON',
+    'Burgers & Sandwiches',
+    [
+      { label: 'w/ Egg', price: 35 },
+      { label: 'w/ Cheese & Egg', price: 40 },
+    ],
+    false
+  ),
+  // EGG SANDWICH: plain ₱20 base, no variants, carries bread add-ons (no patty).
+  {
+    name: 'EGG SANDWICH',
+    category: 'Burgers & Sandwiches',
+    basePrice: 20,
+    available: true,
+    modifierGroups: [addOnsGroup(false)],
+  },
 ];
 
 const HOTDOGS_SAUSAGES: Omit<MenuItem, 'id'>[] = [
-  variantItem('HOTDOG', 'Hotdogs & Sausages', [
-    { label: 'On Stick', price: 20 },
-    { label: 'Sandwich', price: 30 },
-    { label: 'Sandwich w/ Cheese', price: 35 },
-    { label: 'Egg Roll Sandwich', price: 40 },
-  ]),
-  variantItem('HUNGARIAN SAUSAGE', 'Hotdogs & Sausages', [
-    { label: 'On Stick', price: 40 },
-    { label: 'Sandwich', price: 55 },
-  ]),
+  variantItemWithAddOns(
+    'HOTDOG',
+    'Hotdogs & Sausages',
+    [
+      { label: 'On Stick', price: 20 },
+      { label: 'Sandwich', price: 30 },
+      { label: 'Sandwich w/ Cheese', price: 35 },
+      { label: 'Egg Roll Sandwich', price: 40 },
+    ],
+    false
+  ),
+  variantItemWithAddOns(
+    'HUNGARIAN SAUSAGE',
+    'Hotdogs & Sausages',
+    [
+      { label: 'On Stick', price: 40 },
+      { label: 'Sandwich', price: 55 },
+    ],
+    false
+  ),
 ];
 
 const FOOTLONGS_HALFLONGS: Omit<MenuItem, 'id'>[] = [
-  variantItem('FOOTLONG', 'Footlongs & Halflongs', [
-    { label: 'Regular', price: 40 },
-    { label: 'w/ Cheese', price: 50 },
-    { label: 'w/ Coleslaw', price: 50 },
-    { label: 'w/ Cheese & Coleslaw', price: 60 },
-  ]),
-  variantItem('HALFLONG', 'Footlongs & Halflongs', [
-    { label: 'Regular', price: 25 },
-    { label: 'w/ Cheese', price: 30 },
-    { label: 'w/ Coleslaw', price: 30 },
-    { label: 'w/ Cheese & Coleslaw', price: 35 },
-  ]),
+  variantItemWithAddOns(
+    'FOOTLONG',
+    'Footlongs & Halflongs',
+    [
+      { label: 'Regular', price: 40 },
+      { label: 'w/ Cheese', price: 50 },
+      { label: 'w/ Coleslaw', price: 50 },
+      { label: 'w/ Cheese & Coleslaw', price: 60 },
+    ],
+    false
+  ),
+  variantItemWithAddOns(
+    'HALFLONG',
+    'Footlongs & Halflongs',
+    [
+      { label: 'Regular', price: 25 },
+      { label: 'w/ Cheese', price: 30 },
+      { label: 'w/ Coleslaw', price: 30 },
+      { label: 'w/ Cheese & Coleslaw', price: 35 },
+    ],
+    false
+  ),
 ];
 
 const FLOATS: Omit<MenuItem, 'id'>[] = [
@@ -185,7 +275,18 @@ const DESSERTS_SODAS: Omit<MenuItem, 'id'>[] = [
     category: 'Desserts & Sodas',
     basePrice: 15,
     available: true,
-    modifierGroups: [flavourGroup(['COOKIES & CREAM'])],
+    modifierGroups: [
+      flavourGroup(['COOKIES & CREAM']),
+      {
+        id: 'ice-cream-add-ons',
+        name: 'Add-ons',
+        selectionType: 'multiple',
+        required: false,
+        options: [
+          { id: 'extra-scoops', name: '2 Extra Scoops', priceDelta: 10 },
+        ],
+      },
+    ],
   },
   plain('MILO CON YELO', 'Desserts & Sodas', 30),
   plain('GRAHAM CON YELO', 'Desserts & Sodas', 30),
@@ -211,6 +312,16 @@ const DESSERTS_SODAS: Omit<MenuItem, 'id'>[] = [
   },
 ];
 
+const COMBOS: Omit<MenuItem, 'id'>[] = [
+  plain('FRIES W/ DRINKS', 'Combos', 45),
+  plain('FISHBALL W/ DRINKS', 'Combos', 45),
+  plain('KIKIAM W/ DRINKS', 'Combos', 45),
+  plain('CHICKEN BALLS W/ DRINKS', 'Combos', 45),
+  plain('SQUID BALLS W/ DRINKS', 'Combos', 45),
+  plain('CHEESY FRIES W/ DRINKS', 'Combos', 50),
+  plain('HOTDOG W/ DRINKS', 'Combos', 50),
+];
+
 export const MENU: Omit<MenuItem, 'id'>[] = [
   ...STREET_FOODS,
   ...BURGERS_SANDWICHES,
@@ -218,6 +329,7 @@ export const MENU: Omit<MenuItem, 'id'>[] = [
   ...FOOTLONGS_HALFLONGS,
   ...FLOATS,
   ...DESSERTS_SODAS,
+  ...COMBOS,
 ];
 
 /**
